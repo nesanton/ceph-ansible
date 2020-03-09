@@ -1,21 +1,14 @@
 ---
-- name: create default realm
-  command: "{{ container_exec_cmd }} radosgw-admin realm create --cluster={{ cluster }} --rgw-realm={{ item.realm }} --default"
-  delegate_to: "{{ groups[mon_group_name][0] }}"
-  run_once: true
-  with_items: "{{ realms }}"
-  when:
-    - realms is defined
-    - realms | length == 1
-
 - name: create the realm(s)
-  command: "{{ container_exec_cmd }} radosgw-admin realm create --cluster={{ cluster }} --rgw-realm={{ item.realm }}"
+  command: "{{ container_exec_cmd }} radosgw-admin realm create --cluster={{ cluster }} --rgw-realm={{ item.item }} {{ '--default' if _realms | length == 1 else '' }}"
   delegate_to: "{{ groups[mon_group_name][0] }}"
   run_once: true
-  with_items: "{{ realms }}"
+  with_items:
+    - "{{ realmcheck.results }}"
   when:
-    - realms is defined
-    - realms | length > 1
+    - _realms is defined
+    - _realms | length > 0
+    - "'No such file or directory' in item.stderr"
 
 - name: create default master zonegroup(s)
   command: "{{ container_exec_cmd }} radosgw-admin zonegroup create --cluster={{ cluster }} --rgw-realm={{ item.realm }} --rgw-zonegroup={{ item.zonegroup }} --default --master"

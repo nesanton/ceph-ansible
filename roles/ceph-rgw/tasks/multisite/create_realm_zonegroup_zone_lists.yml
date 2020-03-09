@@ -1,26 +1,32 @@
-- name: create list realms
+---
+- name: set_fact realms
   set_fact:
-    realms: "{{ realms | default([]) + [{ 'realm': hostvars[item]['rgw_realm'] }] }}"
-  with_items: "{{ groups.get(rgw_group_name, []) }}"
-  run_once: true
-  when:
-    - hostvars[item]['rgw_zonemaster'] | bool
-    - "'No such file or directory' in hostvars[item]['realmcheck'].stderr"
+    realms: "{{ (rgw_instances | selectattr('rgw_zonemaster', 'equalto', True) | map(attribute='rgw_realm') | list) | unique }}"
 
-- name: make all items in realms unique
+- name: set_fact _realms
   set_fact:
-    realms: "{{ realms | unique }}"
-  run_once: true
-  when:
-    - realms is defined
+    _realms: "{{ (_realms | default([]) + hostvars[item]['realms']) | unique }}"
+  with_items: "{{ groups.get(rgw_group_name, []) }}"
+  run_once: True
+
+#- name: create list realms
+#  set_fact:
+#    realms: "{{ (realms | default([]) + hostvars[item]['rgw_instances'] | selectattr('rgw_zonemaster', 'equalto', True) | map(attribute='rgw_realm') | list) | unique }}"
+#  with_items:
+#    - "{{ groups.get(rgw_group_name, []) }}"
+#  run_once: true
+#  when:
+#    - "'No such file or directory' in hostvars[item]['realmcheck'].stderr"
 
 - name: create list secondary_realms
   set_fact:
-    secondary_realms: "{{ secondary_realms | default([]) + [{ 'realm': hostvars[item]['rgw_realm'], 'is_master': hostvars[item]['rgw_zonemaster'], 'endpoint': hostvars[item]['rgw_pull_proto'] + '://' + hostvars[item]['rgw_pullhost'] + ':' + hostvars[item]['rgw_pull_port']|string, 'access_key': hostvars[item]['system_access_key'], 'secret_key': hostvars[item]['system_secret_key'] }] }}"
-  with_items: "{{ groups.get(rgw_group_name, []) }}"
+    secondary_realms: "{{ secondary_realms | default([]) + [{ 'realm': hostvars[item.0][item.1.rgw_realm], 'is_master': hostvars[item.0][item.1.rgw_zonemaster], 'endpoint': hostvars[item.0][item.1.rgw_pull_proto] + '://' + hostvars[item.0][item.1.rgw_pullhost] + ':' + hostvars[item.0][item.1.rgw_pull_port] | string, 'access_key': hostvars[item.0][item.1.system_access_key], 'secret_key': hostvars[item.0][item.1.system_secret_key] }] }}"
+  with_nested:
+    - "{{ groups.get(rgw_group_name, []) }}"
+    - "{{ rgw_instances }}"
   run_once: true
   when:
-    - not hostvars[item]['rgw_zonemaster'] | bool
+    - not hostvars[item.0]['rgw_zonemaster'] | bool
 
 - name: make all items in secondary_realms unique
   set_fact:
